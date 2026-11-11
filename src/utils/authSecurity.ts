@@ -1,4 +1,4 @@
-import type { AuthSession, UserAccount } from '../types/index.ts';
+import type { AuthSession, UserAccount } from '../types';
 
 /**
  * Generates a random cryptographic salt string.

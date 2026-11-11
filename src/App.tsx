@@ -30,17 +30,50 @@ import { AdminPortalPage } from './pages/AdminPortalPage';
 
 const PROTECTED_AUTH_VIEWS: AppView[] = ['dashboard', 'profile'];
 
-export default function App() {
-  // Support ?autostart=1 to skip directly to 'home' when needed
-  const [currentView, setCurrentView] = useState<AppView>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('autostart') === '1') return 'home';
-    } catch {
-      // ignore
+const VALID_URL_VIEWS = new Set<AppView>([
+  'intro',
+  'home',
+  'login',
+  'register',
+  'dashboard',
+  'exams',
+  'exam-detail',
+  'exam-room',
+  'exam-result',
+  'question-bank',
+  'practice',
+  'wrong-practice',
+  'wrong-analysis',
+  'history',
+  'statistics',
+  'profile',
+  'about',
+  'admin',
+]);
+
+function resolveInitialView(): AppView {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('autostart') === '1') return 'home';
+
+    const rawHash = window.location.hash.replace(/^#\/?/, '').trim() as AppView;
+    if (rawHash && VALID_URL_VIEWS.has(rawHash)) {
+      return rawHash;
     }
-    return 'intro';
-  });
+
+    const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '').trim() as AppView;
+    if (rawPath && VALID_URL_VIEWS.has(rawPath)) {
+      return rawPath;
+    }
+  } catch {
+    // ignore in restricted environments
+  }
+  return 'intro';
+}
+
+export default function App() {
+  // Support ?autostart=1, #view hash, or /view pathname for seamless reload on Vercel
+  const [currentView, setCurrentView] = useState<AppView>(resolveInitialView);
 
   const [users, setUsers] = useState<UserAccount[]>(() => storageService.getUsers());
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() =>
@@ -124,20 +157,27 @@ export default function App() {
     }
   }, [currentUser, currentView]);
 
-  // Sync browser history state so Back button cannot bypass logout into Dashboard
+  // Sync browser history state & hash changes so Back/Forward and refresh work on Vercel
   useEffect(() => {
-    const handlePopState = () => {
+    const handleHistoryChange = () => {
       const activeUser = storageService.getCurrentUser();
       if (!activeUser) {
         setCurrentUser(null);
         setAuthSession(null);
-        setCurrentView((prev) =>
-          PROTECTED_AUTH_VIEWS.includes(prev) ? 'login' : prev
-        );
+      }
+      const nextView = resolveInitialView();
+      if (!activeUser && PROTECTED_AUTH_VIEWS.includes(nextView)) {
+        setCurrentView('login');
+      } else if (nextView !== 'intro' || window.location.hash === '#intro') {
+        setCurrentView(nextView);
       }
     };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('popstate', handleHistoryChange);
+    window.addEventListener('hashchange', handleHistoryChange);
+    return () => {
+      window.removeEventListener('popstate', handleHistoryChange);
+      window.removeEventListener('hashchange', handleHistoryChange);
+    };
   }, []);
 
   const demoAttempts = useMemo(
@@ -153,13 +193,18 @@ export default function App() {
           'Vui lòng đăng nhập tài khoản để truy cập vào Dashboard cá nhân.'
         );
         setCurrentView('login');
+        try {
+          window.history.pushState({ view: 'login' }, '', '#login');
+        } catch {
+          // ignore
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
       setAuthNotice(null);
       setCurrentView(view);
       try {
-        window.history.replaceState({ view }, '', `#${view}`);
+        window.history.pushState({ view }, '', `#${view}`);
       } catch {
         // ignore in restricted iframe environments
       }

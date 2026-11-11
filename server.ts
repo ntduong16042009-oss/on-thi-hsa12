@@ -5,16 +5,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
+
+app.use(express.json());
+
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', app: 'HSA MASTER 2.0' });
+});
+
 async function startServer() {
-  const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
-
-  app.use(express.json());
-
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
-
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -35,5 +35,9 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
 

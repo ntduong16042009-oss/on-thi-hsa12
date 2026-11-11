@@ -6,3 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+.aistudio/
+.playwright-cli/
+.vercel/
+bun.lock
+bun.lockb
+
